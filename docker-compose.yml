@@ -1,0 +1,30 @@
+version: "3"
+
+services: 
+    database:
+        image: mysql/mysql-server:latest
+        ports: 
+            - 3306:3306 # Remove as this will be accessed within docker
+        volumes: 
+            - ./mysqlData:/var/lib/mysql
+        restart: always
+        environment:
+            - MYSQL_ROOT_HOST=%
+            - MYSQL_ROOT_PASSWORD=secret
+
+    users:
+        image: driverse/users:latest
+        restart: always
+
+    rides:
+        image: driverse/rides:latest
+        restart: always
+    
+    api-gateway:
+        image: nginx:latest
+        restart: always
+        ports:
+            - "80:80"
+        volumes:
+            - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+
