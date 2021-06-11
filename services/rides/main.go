@@ -38,7 +38,7 @@ func getMatchingRidesInfo(w http.ResponseWriter, r *http.Request) {
 	end := r.FormValue("EndDate")
 	depLatLng := r.FormValue("DepartureLatLng")
 	depLatLngSplit := strings.Split(depLatLng, ",")
-	//departurePointRadius := r.FormValue("DeparturePointRadius")
+	departurePointRadius := r.FormValue("DeparturePointRadius")
 	arrLatLng := r.FormValue("ArrivalLatLng")
 	arrLatLngSplit := strings.Split(arrLatLng, ",")
 	//arrivalPointRadius := r.FormValue("ArrivalPointRadius")
@@ -46,23 +46,36 @@ func getMatchingRidesInfo(w http.ResponseWriter, r *http.Request) {
 	numbSeats := r.FormValue("NumberOfSeats")
 	//avWeek := r.FormValue("AvailableDaysOfWeek")
 
-	// Do smth with latlng and radius
-	// Do smth with avWeek
+	// Do sth with latlng and radius
+	// Do sth with avWeek: https://stackoverflow.com/a/7638168/16030066
 	// NumSeats AND availableseats
+
+	// IDEA: Use function for distance: https://stackoverflow.com/a/48263512/16030066
 	query := fmt.Sprintf(`
 		SELECT *
 		FROM rides
 		WHERE (
 			StartDate = STR_TO_DATE("%s", "%s") AND
 			EndDate = STR_TO_DATE("%s", "%s") AND 
-			DepartureLat = "%s" AND DepartureLng = "%s" AND 
-			ArrivalLat = "%s" AND ArrivalLng = "%s" AND 
+			111.111 * DEGREES(
+				ACOS(
+					LEAST(1.0, 
+						COS(RADIANS(DepartureLat))
+						* COS(RADIANS(%s))
+						* COS(RADIANS(DepartureLng - %s))
+						+ SIN(RADIANS(DepartureLat))
+						* SIN(RADIANS(%s))
+					)
+				)
+			) * 1000 <= %s AND
+			ArrivalLat = %s AND ArrivalLng = %s AND 
 			DepartureHour = "%s" AND 
-			AvailableSeats = "%s"
+			AvailableSeats = %s
 		)`,
 		start, "%d/%m/%Y",
 		end, "%d/%m/%Y",
-		depLatLngSplit[0], depLatLngSplit[1],
+		depLatLngSplit[0], depLatLngSplit[1], depLatLngSplit[0],
+		departurePointRadius,
 		arrLatLngSplit[0], arrLatLngSplit[1],
 		depHour,
 		numbSeats)
@@ -78,6 +91,7 @@ func getMatchingRidesInfo(w http.ResponseWriter, r *http.Request) {
 		var ride Ride
 		var departureLat, departureLng float32
 		var arrivalLat, arrivalLng float32
+
 		err = results.Scan(&ride.ID, &ride.Driver, &ride.StartDate, &ride.EndDate, &ride.DeparturePoint, &departureLat, &departureLng, &ride.DepartureHour, &ride.ArrivalPoint, &arrivalLat, &arrivalLng, &ride.ArrivalHour, &ride.AvailableSeats, &ride.PricePerSeat, &ride.AvailableDaysOfWeek)
 		if err != nil {
 			log.Fatal(err)
@@ -104,23 +118,24 @@ func getRideInfo(w http.ResponseWriter, r *http.Request) {
 		log.Fatal(err)
 	}
 
-	for results.Next() {
-		var ride Ride
-		var departureLat, departureLng float32
-		var arrivalLat, arrivalLng float32
-		err = results.Scan(&ride.ID, &ride.Driver, &ride.StartDate, &ride.EndDate, &ride.DeparturePoint, &departureLat, &departureLng, &ride.DepartureHour, &ride.ArrivalPoint, &arrivalLat, &arrivalLng, &ride.ArrivalHour, &ride.AvailableSeats, &ride.PricePerSeat, &ride.AvailableDaysOfWeek)
-		if err != nil {
-			log.Fatal(err)
-		}
+	if !results.Next() {
+		log.Fatal("No record for ID")
+	}
 
-		ride.DepartureLatLng = fmt.Sprintf("%f,%f", departureLat, departureLng)
-		ride.ArrivalLatLng = fmt.Sprintf("%f,%f", arrivalLat, arrivalLng)
+	var ride Ride
+	var departureLat, departureLng float32
+	var arrivalLat, arrivalLng float32
+	err = results.Scan(&ride.ID, &ride.Driver, &ride.StartDate, &ride.EndDate, &ride.DeparturePoint, &departureLat, &departureLng, &ride.DepartureHour, &ride.ArrivalPoint, &arrivalLat, &arrivalLng, &ride.ArrivalHour, &ride.AvailableSeats, &ride.PricePerSeat, &ride.AvailableDaysOfWeek)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-		err := json.NewEncoder(w).Encode(ride)
-		if err != nil {
-			log.Fatal(err)
-		}
-		break
+	ride.DepartureLatLng = fmt.Sprintf("%f,%f", departureLat, departureLng)
+	ride.ArrivalLatLng = fmt.Sprintf("%f,%f", arrivalLat, arrivalLng)
+
+	err = json.NewEncoder(w).Encode(ride)
+	if err != nil {
+		log.Fatal(err)
 	}
 }
 
@@ -169,9 +184,9 @@ func main() {
 			"StartDate", "{StartDate}",
 			"EndDate", "{EndDate}",
 			"DepartureLatLng", "{DepartureLatLng}",
-			"DeparturePointRatius", "{DeparturePointRatius}",
+			"DeparturePointRadius", "{DeparturePointRadius}",
 			"ArrivalLatLng", "{ArrivalLatLng}",
-			"ArrivalPointRatius", "{ArrivalPointRatius}",
+			"ArrivalPointRadius", "{ArrivalPointRadius}",
 			"DepartureHour", "{DepartureHour}",
 			"NumberOfSeats", "{NumberOfSeats}",
 			"AvailableDaysOfWeek", "{AvailableDaysOfWeek}",
