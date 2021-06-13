@@ -26,7 +26,7 @@ type Ride struct {
 	ArrivalHour         string `json:"arrivalHour"`
 	AvailableSeats      string `json:"availableSeats"`
 	PricePerSeat        string `json:"pricePerSeat"`
-	AvailableDaysOfWeek string `json:"availableDaysOfWeek"`
+	AvailableDaysOfWeek int    `json:"availableDaysOfWeek"`
 }
 
 var database *sql.DB
@@ -41,16 +41,12 @@ func getMatchingRidesInfo(w http.ResponseWriter, r *http.Request) {
 	departurePointRadius := r.FormValue("DeparturePointRadius")
 	arrLatLng := r.FormValue("ArrivalLatLng")
 	arrLatLngSplit := strings.Split(arrLatLng, ",")
-	//arrivalPointRadius := r.FormValue("ArrivalPointRadius")
+	arrivalPointRadius := r.FormValue("ArrivalPointRadius")
 	depHour := r.FormValue("DepartureHour")
 	numbSeats := r.FormValue("NumberOfSeats")
-	//avWeek := r.FormValue("AvailableDaysOfWeek")
+	avWeek := r.FormValue("AvailableDaysOfWeek")
 
-	// Do sth with latlng and radius
-	// Do sth with avWeek: https://stackoverflow.com/a/7638168/16030066
-	// NumSeats AND availableseats
-
-	// IDEA: Use function for distance: https://stackoverflow.com/a/48263512/16030066
+	// FUTURE WORK: Use function for distance: https://stackoverflow.com/a/48263512/16030066
 	query := fmt.Sprintf(`
 		SELECT *
 		FROM rides
@@ -68,23 +64,38 @@ func getMatchingRidesInfo(w http.ResponseWriter, r *http.Request) {
 					)
 				)
 			) * 1000 <= %s AND
-			ArrivalLat = %s AND ArrivalLng = %s AND 
+			111.111 * DEGREES(
+				ACOS(
+					LEAST(1.0, 
+						COS(RADIANS(ArrivalLat))
+						* COS(RADIANS(%s))
+						* COS(RADIANS(ArrivalLng - %s))
+						+ SIN(RADIANS(ArrivalLat))
+						* SIN(RADIANS(%s))
+					)
+				)
+			) * 1000 <= %s AND 
 			DepartureHour = "%s" AND 
-			AvailableSeats = %s
+			AvailableSeats >= %s AND
+			AvailableDaysOfWeek & %s = %s
 		)`,
 		start, "%d/%m/%Y",
 		end, "%d/%m/%Y",
 		depLatLngSplit[0], depLatLngSplit[1], depLatLngSplit[0],
 		departurePointRadius,
-		arrLatLngSplit[0], arrLatLngSplit[1],
+		arrLatLngSplit[0], arrLatLngSplit[1], arrLatLngSplit[0],
+		arrivalPointRadius,
 		depHour,
-		numbSeats)
+		numbSeats,
+		avWeek, avWeek)
 
 	fmt.Println(query)
 	results, err := database.Query(query)
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	var rides []Ride
 
 	for results.Next() {
 
@@ -100,10 +111,13 @@ func getMatchingRidesInfo(w http.ResponseWriter, r *http.Request) {
 		ride.DepartureLatLng = fmt.Sprintf("%f,%f", departureLat, departureLng)
 		ride.ArrivalLatLng = fmt.Sprintf("%f,%f", arrivalLat, arrivalLng)
 
-		err := json.NewEncoder(w).Encode(ride)
-		if err != nil {
-			log.Fatal(err)
-		}
+		rides = append(rides, ride)
+	}
+
+	fmt.Printf("Rides: %x\n", rides)
+	err = json.NewEncoder(w).Encode(rides)
+	if err != nil {
+		log.Fatal(err)
 	}
 }
 
@@ -149,15 +163,41 @@ func postRideInfo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	DepartureLatLngSplit := strings.Split(ride.DepartureLatLng, ",")
-	//DepartureLat, _ := strconv.ParseFloat(DepartureLatLngSplit[0], 32)
-	//DepartureLng, _ := strconv.ParseFloat(DepartureLatLngSplit[1], 32)
 
 	ArrivalLatLngSplit := strings.Split(ride.ArrivalLatLng, ",")
-	//ArrivalLat, _ := strconv.ParseFloat(ArrivalLatLngSplit[0], 32)
-	//ArrivalLng, _ := strconv.ParseFloat(ArrivalLatLngSplit[1], 32)
 
-	query := fmt.Sprintf("INSERT INTO rides VALUES (\"%s\", \"%s\", STR_TO_DATE(\"%s\", \"%s\"), STR_TO_DATE(\"%s\", \"%s\"), \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\")",
-		ride.ID, ride.Driver, ride.StartDate, "%d/%m/%Y", ride.EndDate, "%d/%m/%Y", ride.DeparturePoint, DepartureLatLngSplit[0], DepartureLatLngSplit[1], ride.DepartureHour, ride.ArrivalPoint, ArrivalLatLngSplit[0], ArrivalLatLngSplit[1], ride.ArrivalHour, ride.AvailableSeats, ride.PricePerSeat, ride.AvailableDaysOfWeek)
+	query := fmt.Sprintf(`
+		INSERT INTO rides
+		VALUES (
+			"%s",
+			"%s",
+			STR_TO_DATE("%s", "%s"),
+			STR_TO_DATE("%s", "%s"),
+			"%s",
+			"%s", "%s",
+			"%s",
+			"%s",
+			"%s", "%s",
+			"%s",
+			"%s",
+			"%s",
+			%d
+		)`,
+		ride.ID,
+		ride.Driver,
+		ride.StartDate, "%d/%m/%Y",
+		ride.EndDate, "%d/%m/%Y",
+		ride.DeparturePoint,
+		DepartureLatLngSplit[0], DepartureLatLngSplit[1],
+		ride.DepartureHour,
+		ride.ArrivalPoint,
+		ArrivalLatLngSplit[0], ArrivalLatLngSplit[1],
+		ride.ArrivalHour,
+		ride.AvailableSeats,
+		ride.PricePerSeat,
+		ride.AvailableDaysOfWeek)
+
+	fmt.Println(query)
 
 	insert, err := database.Query(query)
 	if err != nil {
