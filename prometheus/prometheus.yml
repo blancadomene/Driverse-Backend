@@ -26,3 +26,8 @@ scrape_configs:
     scrape_interval: 5s
     static_configs:
     - targets: ['cadvisor:8080']
+
+  - job_name: rides_service
+    scrape_interval: 5s
+    static_configs:
+    - targets: ['rides:8080'] 

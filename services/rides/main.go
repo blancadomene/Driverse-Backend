@@ -9,6 +9,9 @@ import (
 	"strings"
 
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/gorilla/mux"
 )
@@ -29,10 +32,19 @@ type Ride struct {
 	AvailableDaysOfWeek int    `json:"availableDaysOfWeek"`
 }
 
-var database *sql.DB
+var (
+	database *sql.DB
+
+	requetsCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "rides_requests_total",
+		Help: "Processed requests.",
+	}) // TODO: One per each get/post API within this service
+)
 
 func getMatchingRidesInfo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+
+	requetsCounter.Inc()
 
 	start := r.FormValue("StartDate")
 	end := r.FormValue("EndDate")
@@ -243,6 +255,8 @@ func main() {
 		Path("/info").
 		Queries("ID", "{ID}").
 		HandlerFunc(getRideInfo)
+
+	router.Handle("/metrics", promhttp.Handler())
 
 	fmt.Println("Listening at 8080")
 	log.Fatal(http.ListenAndServe(":8080", router))

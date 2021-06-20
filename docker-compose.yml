@@ -1,4 +1,10 @@
-version: "3"
+# Compose: docker-compose up
+# Swarm: 
+#   docker swarm init
+#   docker stack deploy --compose-file docker-compose.yml driverse
+#   docker stack services driverse
+
+version: "3.2"
 
 services: 
     database:
@@ -7,22 +13,26 @@ services:
             - 3306:3306 # Remove as this will be accessed within docker
         volumes: 
             - ./mysqlData:/var/lib/mysql
-        restart: always
         environment:
             - MYSQL_ROOT_HOST=%
             - MYSQL_ROOT_PASSWORD=secret
 
     users:
         image: driverse/users:latest
-        restart: always
+        deploy:
+            mode: replicated
+            replicas: 3
+            endpoint_mode: dnsrr
 
     rides:
         image: driverse/rides:latest
-        restart: always
+        deploy:
+            mode: replicated
+            replicas: 3
+            endpoint_mode: dnsrr
     
     api-gateway:
         image: nginx:latest
-        restart: always
         ports:
             - 80:80
         volumes:
@@ -31,7 +41,6 @@ services:
     prometheus:
         image: prom/prometheus
         command: --config.file=/etc/prometheus/prometheus.yml
-        restart: always
         ports:
             - 9090:9090
         volumes:
@@ -40,7 +49,6 @@ services:
     grafana:
         image: grafana/grafana
         user: "$UID:$GID"
-        restart: always
         ports:
             - 3000:3000
         volumes:
@@ -48,16 +56,13 @@ services:
 
     node_exporter:
         image: quay.io/prometheus/node-exporter:latest
-        restart: always
         command:
             - '--path.rootfs=/host'
-        pid: host
         volumes:
             - '/:/host:ro,rslave'
 
     cadvisor:
         image: gcr.io/cadvisor/cadvisor:latest
-        restart: always
         volumes:
             - /:/rootfs:ro
             - /var/run:/var/run:rw
