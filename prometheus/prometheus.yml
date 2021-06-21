@@ -31,3 +31,8 @@ scrape_configs:
     scrape_interval: 5s
     static_configs:
     - targets: ['rides:8080'] 
+
+  - job_name: users_service
+    scrape_interval: 5s
+    static_configs:
+    - targets: ['users:8080'] 

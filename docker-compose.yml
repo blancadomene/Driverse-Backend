@@ -1,8 +1,9 @@
 # Compose: docker-compose up
 # Swarm: 
 #   docker swarm init
-#   docker stack deploy --compose-file docker-compose.yml driverse
+#   docker stack deploy --prune --compose-file docker-compose.yml driverse
 #   docker stack services driverse
+#   sudo docker stack rm driverse   
 
 version: "3.2"
 

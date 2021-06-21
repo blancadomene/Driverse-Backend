@@ -35,16 +35,26 @@ type Ride struct {
 var (
 	database *sql.DB
 
-	requetsCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "rides_requests_total",
-		Help: "Processed requests.",
-	}) // TODO: One per each get/post API within this service
+	matchingRidesRequests = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "matching_rides_requests",
+		Help: "Matching rides processed requests.",
+	})
+
+	getRideRequests = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "get_ride_requests",
+		Help: "Get ride info processed requests.",
+	})
+
+	postRideRequests = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "post_ride_requests",
+		Help: "Post ride info processed requests.",
+	})
 )
 
 func getMatchingRidesInfo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	requetsCounter.Inc()
+	matchingRidesRequests.Inc()
 
 	start := r.FormValue("StartDate")
 	end := r.FormValue("EndDate")
@@ -136,6 +146,8 @@ func getMatchingRidesInfo(w http.ResponseWriter, r *http.Request) {
 func getRideInfo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
+	getRideRequests.Inc()
+
 	rideID := r.FormValue("ID")
 
 	query := fmt.Sprintf("SELECT * FROM rides WHERE (ID = \"%s\")", rideID)
@@ -167,6 +179,8 @@ func getRideInfo(w http.ResponseWriter, r *http.Request) {
 
 func postRideInfo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+
+	postRideRequests.Inc()
 
 	var ride Ride
 	err := json.NewDecoder(r.Body).Decode(&ride)

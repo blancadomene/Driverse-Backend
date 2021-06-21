@@ -10,6 +10,9 @@ import (
 	"net/http"
 
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/gorilla/mux"
 )
@@ -27,10 +30,29 @@ type User struct {
 	Preferences string `json:"preferences"`
 }
 
-var database *sql.DB
+var (
+	database *sql.DB
+
+	userAuthenticationRequests = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "user_authentication_requests",
+		Help: "User authentication processed requests.",
+	})
+
+	getUserRequests = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "get_user_requests",
+		Help: "Get user info processed requests.",
+	})
+
+	postUserRequests = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "post_user_requests",
+		Help: "Post user info processed requests.",
+	})
+)
 
 func Authentication(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+
+	userAuthenticationRequests.Inc()
 
 	type loginInfo struct {
 		Email    string `json:"email"`
@@ -69,9 +91,15 @@ func Authentication(w http.ResponseWriter, r *http.Request) {
 func getUserInfo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
+	getUserRequests.Inc()
+
 	id := r.FormValue("ID")
 
-	query := fmt.Sprintf("SELECT * FROM users WHERE (ID = \"%s\")", id)
+	query := fmt.Sprintf(`
+		SELECT *
+		FROM users
+		WHERE (ID = "%s")`,
+		id)
 	results, err := database.Query(query)
 	if err != nil {
 		log.Fatal(err)
@@ -95,9 +123,11 @@ func getUserInfo(w http.ResponseWriter, r *http.Request) {
 }
 
 // Future work: Sign up
-// Users added from postman or SQL until then
+// Users added from Postman or SQL until then
 func postUserInfo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+
+	postUserRequests.Inc()
 
 	var user User
 	err := json.NewDecoder(r.Body).Decode(&user)
@@ -110,8 +140,30 @@ func postUserInfo(w http.ResponseWriter, r *http.Request) {
 
 	var grav = fmt.Sprintf("https://www.gravatar.com/avatar/%s?s=256&d=identicon&r=PG", hex.EncodeToString(emailmd5[:]))
 
-	query := fmt.Sprintf("INSERT INTO users VALUES (\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", STR_TO_DATE(\"%s\", \"%s\"), \"%s\", \"%s\", \"%s\", \"%s\")",
-		user.ID, user.Email, hex.EncodeToString(passwordmd5[:]), user.Name, user.Surname, user.Birthdate, "%d/%m/%Y", user.Car, grav, user.Mobilephone, user.Preferences)
+	query := fmt.Sprintf(`
+		INSERT INTO users
+		VALUES (
+			"%s", 
+			"%s", 
+			"%s", 
+			"%s", 
+			"%s", 
+			STR_TO_DATE("%s", "%s"), 
+			"%s", 
+			"%s", 
+			"%s", 
+			"%s"
+		)`,
+		user.ID,
+		user.Email,
+		hex.EncodeToString(passwordmd5[:]),
+		user.Name,
+		user.Surname,
+		user.Birthdate, "%d/%m/%Y",
+		user.Car,
+		grav,
+		user.Mobilephone,
+		user.Preferences)
 
 	insert, err := database.Query(query)
 	if err != nil {
@@ -147,6 +199,8 @@ func main() {
 		Path("/info").
 		Queries("ID", "{ID}").
 		HandlerFunc(getUserInfo)
+
+	router.Handle("/metrics", promhttp.Handler())
 
 	fmt.Println("Listening at 8080")
 	log.Fatal(http.ListenAndServe(":8080", router))
