@@ -5,6 +5,7 @@ ENV MICROSERVICE=${MICROSERVICE}
 
 ENV GO111MODULE=off
 
+RUN go get github.com/Sirupsen/logrus
 RUN go get github.com/go-sql-driver/mysql
 RUN go get github.com/gorilla/mux
 RUN go get github.com/prometheus/client_golang/prometheus

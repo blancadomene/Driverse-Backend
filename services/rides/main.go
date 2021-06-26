@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 
@@ -12,6 +11,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/gorilla/mux"
 )
@@ -111,10 +112,11 @@ func getMatchingRidesInfo(w http.ResponseWriter, r *http.Request) {
 		numbSeats,
 		avWeek, avWeek)
 
-	fmt.Println(query)
 	results, err := database.Query(query)
 	if err != nil {
-		log.Fatal(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Error(err)
+		return
 	}
 
 	var rides []Ride
@@ -127,7 +129,9 @@ func getMatchingRidesInfo(w http.ResponseWriter, r *http.Request) {
 
 		err = results.Scan(&ride.ID, &ride.Driver, &ride.StartDate, &ride.EndDate, &ride.DeparturePoint, &departureLat, &departureLng, &ride.DepartureHour, &ride.ArrivalPoint, &arrivalLat, &arrivalLng, &ride.ArrivalHour, &ride.AvailableSeats, &ride.PricePerSeat, &ride.AvailableDaysOfWeek)
 		if err != nil {
-			log.Fatal(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			log.Error(err)
+			return
 		}
 
 		ride.DepartureLatLng = fmt.Sprintf("%f,%f", departureLat, departureLng)
@@ -139,8 +143,12 @@ func getMatchingRidesInfo(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("Rides: %x\n", rides)
 	err = json.NewEncoder(w).Encode(rides)
 	if err != nil {
-		log.Fatal(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Error(err)
+		return
 	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func getRideInfo(w http.ResponseWriter, r *http.Request) {
@@ -153,11 +161,15 @@ func getRideInfo(w http.ResponseWriter, r *http.Request) {
 	query := fmt.Sprintf("SELECT * FROM rides WHERE (ID = \"%s\")", rideID)
 	results, err := database.Query(query)
 	if err != nil {
-		log.Fatal(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Error(err)
+		return
 	}
 
 	if !results.Next() {
-		log.Fatal("No record for ID")
+		w.WriteHeader(http.StatusNotFound)
+		log.Error(err)
+		return
 	}
 
 	var ride Ride
@@ -165,7 +177,9 @@ func getRideInfo(w http.ResponseWriter, r *http.Request) {
 	var arrivalLat, arrivalLng float32
 	err = results.Scan(&ride.ID, &ride.Driver, &ride.StartDate, &ride.EndDate, &ride.DeparturePoint, &departureLat, &departureLng, &ride.DepartureHour, &ride.ArrivalPoint, &arrivalLat, &arrivalLng, &ride.ArrivalHour, &ride.AvailableSeats, &ride.PricePerSeat, &ride.AvailableDaysOfWeek)
 	if err != nil {
-		log.Fatal(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Error(err)
+		return
 	}
 
 	ride.DepartureLatLng = fmt.Sprintf("%f,%f", departureLat, departureLng)
@@ -173,8 +187,12 @@ func getRideInfo(w http.ResponseWriter, r *http.Request) {
 
 	err = json.NewEncoder(w).Encode(ride)
 	if err != nil {
-		log.Fatal(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Error(err)
+		return
 	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func postRideInfo(w http.ResponseWriter, r *http.Request) {
@@ -185,7 +203,9 @@ func postRideInfo(w http.ResponseWriter, r *http.Request) {
 	var ride Ride
 	err := json.NewDecoder(r.Body).Decode(&ride)
 	if err != nil {
-		log.Fatal(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Error(err)
+		return
 	}
 
 	DepartureLatLngSplit := strings.Split(ride.DepartureLatLng, ",")
@@ -227,10 +247,13 @@ func postRideInfo(w http.ResponseWriter, r *http.Request) {
 
 	insert, err := database.Query(query)
 	if err != nil {
-		log.Fatal(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Error(err)
+		return
 	}
 	_ = insert
-	defer insert.Close()
+	insert.Close()
+	w.WriteHeader(http.StatusOK)
 }
 
 func main() {

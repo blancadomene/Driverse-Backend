@@ -4,6 +4,9 @@
 #   docker stack deploy --prune --compose-file docker-compose.yml driverse
 #   docker stack services driverse
 #   sudo docker stack rm driverse   
+#   Si no funciona:
+#       sudo docker stop $(sudo docker ps -a -q)
+#       sudo docker rm -f $(sudo docker ps -a -q)
 
 version: "3.7"
 

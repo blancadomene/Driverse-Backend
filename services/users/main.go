@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -15,6 +14,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/gorilla/mux"
+
+	log "github.com/Sirupsen/logrus"
 )
 
 type User struct {
@@ -62,27 +63,36 @@ func Authentication(w http.ResponseWriter, r *http.Request) {
 	var info loginInfo
 	err := json.NewDecoder(r.Body).Decode(&info)
 	if err != nil {
-		log.Fatal(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Error(err)
+		return
 	}
 
 	query := fmt.Sprintf("SELECT ID FROM users WHERE (Email = \"%s\" AND Password = \"%s\")", info.Email, info.Password)
 	results, err := database.Query(query)
 	if err != nil {
-		log.Fatal(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Error(err)
+		return
 	}
 
 	if results.Next() {
-		w.WriteHeader(http.StatusOK)
 		var user User
 		err = results.Scan(&user.ID)
 		if err != nil {
-			log.Fatal(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			log.Error(err)
+			return
 		}
 
 		err := json.NewEncoder(w).Encode(user)
 		if err != nil {
-			log.Fatal(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			log.Error(err)
+			return
 		}
+
+		w.WriteHeader(http.StatusOK)
 	} else {
 		w.WriteHeader(http.StatusUnauthorized)
 	}
@@ -102,7 +112,9 @@ func getUserInfo(w http.ResponseWriter, r *http.Request) {
 		id)
 	results, err := database.Query(query)
 	if err != nil {
-		log.Fatal(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Error(err)
+		return
 	}
 
 	for results.Next() {
@@ -110,16 +122,24 @@ func getUserInfo(w http.ResponseWriter, r *http.Request) {
 		// for each row, scan the result into our tag composite object
 		err = results.Scan(&user.ID, &user.Email, &user.Password, &user.Name, &user.Surname, &user.Birthdate, &user.Car, &user.Image, &user.Mobilephone, &user.Preferences)
 		if err != nil {
-			log.Fatal(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			log.Error(err)
+			return
 		}
 		user.Password = ""
 
 		err := json.NewEncoder(w).Encode(user)
 		if err != nil {
-			log.Fatal(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			log.Error(err)
+			return
 		}
-		break
+
+		w.WriteHeader(http.StatusOK)
+		return
 	}
+
+	w.WriteHeader(http.StatusNotFound)
 }
 
 // Future work: Sign up
@@ -132,7 +152,9 @@ func postUserInfo(w http.ResponseWriter, r *http.Request) {
 	var user User
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
-		log.Fatal(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Error(err)
+		return
 	}
 
 	var emailmd5 = md5.Sum([]byte(user.Email))
@@ -167,10 +189,15 @@ func postUserInfo(w http.ResponseWriter, r *http.Request) {
 
 	insert, err := database.Query(query)
 	if err != nil {
-		log.Fatal(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Error(err)
+		return
 	}
+
 	_ = insert
-	defer insert.Close()
+	insert.Close()
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func main() {
