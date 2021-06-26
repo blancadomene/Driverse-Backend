@@ -5,7 +5,7 @@
 #   docker stack services driverse
 #   sudo docker stack rm driverse   
 
-version: "3.2"
+version: "3.7"
 
 services: 
     database:
@@ -24,6 +24,10 @@ services:
             mode: replicated
             replicas: 3
             endpoint_mode: dnsrr
+            update_config:
+                parallelism: 1
+                delay: 10s
+                order: start-first
 
     rides:
         image: driverse/rides:latest
@@ -31,6 +35,10 @@ services:
             mode: replicated
             replicas: 3
             endpoint_mode: dnsrr
+            update_config:
+                parallelism: 1
+                delay: 10s
+                order: start-first
     
     api-gateway:
         image: nginx:latest
