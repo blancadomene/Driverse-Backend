@@ -50,6 +50,16 @@ var (
 		Name: "post_ride_requests",
 		Help: "Post ride info processed requests.",
 	})
+
+	postBookingRequests = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "post_booking_requests",
+		Help: "Post booking processed requests.",
+	})
+
+	getBookingRequests = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "get_booking_requests",
+		Help: "Get booking processed requests.",
+	})
 )
 
 func getMatchingRidesInfo(w http.ResponseWriter, r *http.Request) {
@@ -140,7 +150,6 @@ func getMatchingRidesInfo(w http.ResponseWriter, r *http.Request) {
 		rides = append(rides, ride)
 	}
 
-	fmt.Printf("Rides: %x\n", rides)
 	err = json.NewEncoder(w).Encode(rides)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -256,6 +265,99 @@ func postRideInfo(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+func postBooking(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	postBookingRequests.Inc()
+
+	type bookingInfo struct {
+		UserID string `json:"userID"`
+		RideID string `json:"rideID"`
+		Seats  int    `json:"seats"`
+	}
+
+	var info bookingInfo
+	err := json.NewDecoder(r.Body).Decode(&info)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Error(err)
+		return
+	}
+
+	for i := 0; i < info.Seats; i++ {
+		query := fmt.Sprintf(`
+			INSERT INTO bookings
+			VALUES (
+				"%s",
+				"%s"
+			)`,
+			info.UserID,
+			info.RideID)
+
+		insert, err := database.Query(query)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			log.Error(err)
+			return
+		}
+		_ = insert
+		insert.Close()
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func getBooking(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	getBookingRequests.Inc()
+
+	userID := r.FormValue("ID")
+
+	query := fmt.Sprintf(`
+		SELECT rides.*
+		FROM rides
+		INNER JOIN bookings ON bookings.rideID=rides.ID
+		WHERE (bookings.userID = "%s")`,
+		userID)
+
+	results, err := database.Query(query)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Error(err)
+		return
+	}
+
+	var rides []Ride
+
+	for results.Next() {
+
+		var ride Ride
+		var departureLat, departureLng float32
+		var arrivalLat, arrivalLng float32
+
+		err = results.Scan(&ride.ID, &ride.Driver, &ride.StartDate, &ride.EndDate, &ride.DeparturePoint, &departureLat, &departureLng, &ride.DepartureHour, &ride.ArrivalPoint, &arrivalLat, &arrivalLng, &ride.ArrivalHour, &ride.AvailableSeats, &ride.PricePerSeat, &ride.AvailableDaysOfWeek)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			log.Error(err)
+			return
+		}
+
+		ride.DepartureLatLng = fmt.Sprintf("%f,%f", departureLat, departureLng)
+		ride.ArrivalLatLng = fmt.Sprintf("%f,%f", arrivalLat, arrivalLng)
+
+		rides = append(rides, ride)
+	}
+
+	err = json.NewEncoder(w).Encode(rides)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Error(err)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
 func main() {
 	var err error
 
@@ -292,6 +394,17 @@ func main() {
 		Path("/info").
 		Queries("ID", "{ID}").
 		HandlerFunc(getRideInfo)
+
+	router.
+		Methods(http.MethodPost).
+		Path("/book").
+		HandlerFunc(postBooking)
+
+	router.
+		Methods(http.MethodGet).
+		Path("/book").
+		Queries("ID", "{ID}").
+		HandlerFunc(getBooking)
 
 	router.Handle("/metrics", promhttp.Handler())
 

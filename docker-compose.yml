@@ -1,8 +1,11 @@
+# sudo docker ps
+# Imagen: sudo docker build --build-arg "MICROSERVICE=users" -t driverse/users . # desde ~/mysql_docker/services, cambiando users por rides
+# mysql --host=127.0.0.1 --port=3306 --user=root --password=secret # para acceder a la BBDD desde el terminal
 # Compose: docker-compose up
 # Swarm: 
-#   docker swarm init
-#   docker stack deploy --prune --compose-file docker-compose.yml driverse
-#   docker stack services driverse
+#   sudo docker swarm init
+#   sudo docker stack deploy --prune --compose-file docker-compose.yml driverse
+#   sudo docker stack services driverse
 #   sudo docker stack rm driverse   
 #   Si no funciona:
 #       sudo docker stop $(sudo docker ps -a -q)
