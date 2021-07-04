@@ -68,8 +68,8 @@ func Authentication(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	query := fmt.Sprintf("SELECT ID FROM users WHERE (Email = \"%s\" AND Password = \"%s\")", info.Email, info.Password)
-	results, err := database.Query(query)
+	query := "SELECT ID FROM users WHERE (Email = ? AND Password = ?)"
+	results, err := database.Query(query, info.Email, info.Password)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		log.Error(err)
@@ -105,12 +105,8 @@ func getUserInfo(w http.ResponseWriter, r *http.Request) {
 
 	id := r.FormValue("ID")
 
-	query := fmt.Sprintf(`
-		SELECT *
-		FROM users
-		WHERE (ID = "%s")`,
-		id)
-	results, err := database.Query(query)
+	query := "SELECT * FROM users WHERE (ID = ?)"
+	results, err := database.Query(query, id)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		log.Error(err)
@@ -162,20 +158,21 @@ func postUserInfo(w http.ResponseWriter, r *http.Request) {
 
 	var grav = fmt.Sprintf("https://www.gravatar.com/avatar/%s?s=256&d=identicon&r=PG", hex.EncodeToString(emailmd5[:]))
 
-	query := fmt.Sprintf(`
+	query := `
 		INSERT INTO users
 		VALUES (
-			"%s", 
-			"%s", 
-			"%s", 
-			"%s", 
-			"%s", 
-			STR_TO_DATE("%s", "%s"), 
-			"%s", 
-			"%s", 
-			"%s", 
-			"%s"
-		)`,
+			?, 
+			?, 
+			?, 
+			?, 
+			?, 
+			STR_TO_DATE(?, ?), 
+			?, 
+			?, 
+			?, 
+			?
+		)`
+	insert, err := database.Query(query,
 		user.ID,
 		user.Email,
 		hex.EncodeToString(passwordmd5[:]),
@@ -186,8 +183,6 @@ func postUserInfo(w http.ResponseWriter, r *http.Request) {
 		grav,
 		user.Mobilephone,
 		user.Preferences)
-
-	insert, err := database.Query(query)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		log.Error(err)

@@ -80,38 +80,40 @@ func getMatchingRidesInfo(w http.ResponseWriter, r *http.Request) {
 	avWeek := r.FormValue("AvailableDaysOfWeek")
 
 	// FUTURE WORK: Use function for distance: https://stackoverflow.com/a/48263512/16030066
-	query := fmt.Sprintf(`
+	query := `
 		SELECT *
 		FROM rides
 		WHERE (
-			StartDate = STR_TO_DATE("%s", "%s") AND
-			EndDate = STR_TO_DATE("%s", "%s") AND 
+			StartDate = STR_TO_DATE(?, ?) AND
+			EndDate = STR_TO_DATE(?, ?) AND 
 			111.111 * DEGREES(
 				ACOS(
 					LEAST(1.0, 
 						COS(RADIANS(DepartureLat))
-						* COS(RADIANS(%s))
-						* COS(RADIANS(DepartureLng - %s))
+						* COS(RADIANS(?))
+						* COS(RADIANS(DepartureLng - ?))
 						+ SIN(RADIANS(DepartureLat))
-						* SIN(RADIANS(%s))
+						* SIN(RADIANS(?))
 					)
 				)
-			) * 1000 <= %s AND
+			) * 1000 <= ? AND
 			111.111 * DEGREES(
 				ACOS(
 					LEAST(1.0, 
 						COS(RADIANS(ArrivalLat))
-						* COS(RADIANS(%s))
-						* COS(RADIANS(ArrivalLng - %s))
+						* COS(RADIANS(?))
+						* COS(RADIANS(ArrivalLng - ?))
 						+ SIN(RADIANS(ArrivalLat))
-						* SIN(RADIANS(%s))
+						* SIN(RADIANS(?))
 					)
 				)
-			) * 1000 <= %s AND 
-			DepartureHour = "%s" AND 
-			AvailableSeats >= %s AND
-			AvailableDaysOfWeek & %s = %s
-		)`,
+			) * 1000 <= ? AND 
+			DepartureHour = ? AND 
+			AvailableSeats >= ? AND
+			AvailableDaysOfWeek & ? = ?
+		)`
+
+	results, err := database.Query(query,
 		start, "%d/%m/%Y",
 		end, "%d/%m/%Y",
 		depLatLngSplit[0], depLatLngSplit[1], depLatLngSplit[0],
@@ -121,8 +123,6 @@ func getMatchingRidesInfo(w http.ResponseWriter, r *http.Request) {
 		depHour,
 		numbSeats,
 		avWeek, avWeek)
-
-	results, err := database.Query(query)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		log.Error(err)
@@ -167,8 +167,8 @@ func getRideInfo(w http.ResponseWriter, r *http.Request) {
 
 	rideID := r.FormValue("ID")
 
-	query := fmt.Sprintf("SELECT * FROM rides WHERE (ID = \"%s\")", rideID)
-	results, err := database.Query(query)
+	query := "SELECT * FROM rides WHERE (ID = ?)"
+	results, err := database.Query(query, rideID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		log.Error(err)
@@ -221,23 +221,25 @@ func postRideInfo(w http.ResponseWriter, r *http.Request) {
 
 	ArrivalLatLngSplit := strings.Split(ride.ArrivalLatLng, ",")
 
-	query := fmt.Sprintf(`
-		INSERT INTO rides
-		VALUES (
-			"%s",
-			"%s",
-			STR_TO_DATE("%s", "%s"),
-			STR_TO_DATE("%s", "%s"),
-			"%s",
-			"%s", "%s",
-			"%s",
-			"%s",
-			"%s", "%s",
-			"%s",
-			"%s",
-			"%s",
-			%d
-		)`,
+	query := `
+	INSERT INTO rides
+	VALUES (
+		?,
+		?,
+		STR_TO_DATE(?, ?),
+		STR_TO_DATE(?, ?),
+		?,
+		?, ?,
+		?,
+		?,
+		?, ?,
+		?,
+		?,
+		?,
+		?
+	)`
+
+	insert, err := database.Query(query,
 		ride.ID,
 		ride.Driver,
 		ride.StartDate, "%d/%m/%Y",
@@ -251,10 +253,6 @@ func postRideInfo(w http.ResponseWriter, r *http.Request) {
 		ride.AvailableSeats,
 		ride.PricePerSeat,
 		ride.AvailableDaysOfWeek)
-
-	fmt.Println(query)
-
-	insert, err := database.Query(query)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		log.Error(err)
@@ -285,16 +283,8 @@ func postBooking(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for i := 0; i < info.Seats; i++ {
-		query := fmt.Sprintf(`
-			INSERT INTO bookings
-			VALUES (
-				"%s",
-				"%s"
-			)`,
-			info.UserID,
-			info.RideID)
-
-		insert, err := database.Query(query)
+		query := "INSERT INTO bookings VALUES (?, ?)"
+		insert, err := database.Query(query, info.UserID, info.RideID)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			log.Error(err)
@@ -313,14 +303,13 @@ func getBooking(w http.ResponseWriter, r *http.Request) {
 
 	userID := r.FormValue("ID")
 
-	query := fmt.Sprintf(`
+	query := `
 		SELECT rides.*
 		FROM rides
 		INNER JOIN bookings ON bookings.rideID=rides.ID
-		WHERE (bookings.userID = "%s")`,
-		userID)
+		WHERE (bookings.userID = ?)`
 
-	results, err := database.Query(query)
+	results, err := database.Query(query, userID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		log.Error(err)
