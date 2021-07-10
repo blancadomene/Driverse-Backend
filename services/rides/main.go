@@ -60,6 +60,31 @@ var (
 		Name: "get_booking_requests",
 		Help: "Get booking processed requests.",
 	})
+
+	matchingRidesRequestsFailed = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "matching_rides_requests_failed",
+		Help: "Failed matching rides processed requests.",
+	})
+
+	getRideRequestsFailed = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "get_ride_requests_failed",
+		Help: "Failed get ride info processed requests.",
+	})
+
+	postRideRequestsFailed = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "post_ride_requests_failed",
+		Help: "Failed post ride info processed requests.",
+	})
+
+	postBookingRequestsFailed = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "post_booking_requests_failed",
+		Help: "Failed post booking processed requests.",
+	})
+
+	getBookingRequestsFailed = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "get_booking_requests_failed",
+		Help: "Failed get booking processed requests.",
+	})
 )
 
 func getMatchingRidesInfo(w http.ResponseWriter, r *http.Request) {
@@ -125,6 +150,7 @@ func getMatchingRidesInfo(w http.ResponseWriter, r *http.Request) {
 		avWeek, avWeek)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		matchingRidesRequestsFailed.Inc()
 		log.Error(err)
 		return
 	}
@@ -140,6 +166,7 @@ func getMatchingRidesInfo(w http.ResponseWriter, r *http.Request) {
 		err = results.Scan(&ride.ID, &ride.Driver, &ride.StartDate, &ride.EndDate, &ride.DeparturePoint, &departureLat, &departureLng, &ride.DepartureHour, &ride.ArrivalPoint, &arrivalLat, &arrivalLng, &ride.ArrivalHour, &ride.AvailableSeats, &ride.PricePerSeat, &ride.AvailableDaysOfWeek)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
+			matchingRidesRequestsFailed.Inc()
 			log.Error(err)
 			return
 		}
@@ -153,6 +180,7 @@ func getMatchingRidesInfo(w http.ResponseWriter, r *http.Request) {
 	err = json.NewEncoder(w).Encode(rides)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		matchingRidesRequestsFailed.Inc()
 		log.Error(err)
 		return
 	}
@@ -171,12 +199,14 @@ func getRideInfo(w http.ResponseWriter, r *http.Request) {
 	results, err := database.Query(query, rideID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		getRideRequestsFailed.Inc()
 		log.Error(err)
 		return
 	}
 
 	if !results.Next() {
 		w.WriteHeader(http.StatusNotFound)
+		getRideRequestsFailed.Inc()
 		log.Error(err)
 		return
 	}
@@ -187,6 +217,7 @@ func getRideInfo(w http.ResponseWriter, r *http.Request) {
 	err = results.Scan(&ride.ID, &ride.Driver, &ride.StartDate, &ride.EndDate, &ride.DeparturePoint, &departureLat, &departureLng, &ride.DepartureHour, &ride.ArrivalPoint, &arrivalLat, &arrivalLng, &ride.ArrivalHour, &ride.AvailableSeats, &ride.PricePerSeat, &ride.AvailableDaysOfWeek)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		getRideRequestsFailed.Inc()
 		log.Error(err)
 		return
 	}
@@ -197,6 +228,7 @@ func getRideInfo(w http.ResponseWriter, r *http.Request) {
 	err = json.NewEncoder(w).Encode(ride)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		getRideRequestsFailed.Inc()
 		log.Error(err)
 		return
 	}
@@ -213,6 +245,7 @@ func postRideInfo(w http.ResponseWriter, r *http.Request) {
 	err := json.NewDecoder(r.Body).Decode(&ride)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		postRideRequestsFailed.Inc()
 		log.Error(err)
 		return
 	}
@@ -255,6 +288,7 @@ func postRideInfo(w http.ResponseWriter, r *http.Request) {
 		ride.AvailableDaysOfWeek)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		postRideRequestsFailed.Inc()
 		log.Error(err)
 		return
 	}
@@ -278,6 +312,7 @@ func postBooking(w http.ResponseWriter, r *http.Request) {
 	err := json.NewDecoder(r.Body).Decode(&info)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		postBookingRequestsFailed.Inc()
 		log.Error(err)
 		return
 	}
@@ -287,6 +322,7 @@ func postBooking(w http.ResponseWriter, r *http.Request) {
 		insert, err := database.Query(query, info.UserID, info.RideID)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
+			postBookingRequestsFailed.Inc()
 			log.Error(err)
 			return
 		}
@@ -312,6 +348,7 @@ func getBooking(w http.ResponseWriter, r *http.Request) {
 	results, err := database.Query(query, userID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		getBookingRequestsFailed.Inc()
 		log.Error(err)
 		return
 	}
@@ -327,6 +364,7 @@ func getBooking(w http.ResponseWriter, r *http.Request) {
 		err = results.Scan(&ride.ID, &ride.Driver, &ride.StartDate, &ride.EndDate, &ride.DeparturePoint, &departureLat, &departureLng, &ride.DepartureHour, &ride.ArrivalPoint, &arrivalLat, &arrivalLng, &ride.ArrivalHour, &ride.AvailableSeats, &ride.PricePerSeat, &ride.AvailableDaysOfWeek)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
+			getBookingRequestsFailed.Inc()
 			log.Error(err)
 			return
 		}
@@ -340,6 +378,7 @@ func getBooking(w http.ResponseWriter, r *http.Request) {
 	err = json.NewEncoder(w).Encode(rides)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		getBookingRequestsFailed.Inc()
 		log.Error(err)
 		return
 	}

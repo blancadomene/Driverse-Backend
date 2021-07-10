@@ -48,6 +48,21 @@ var (
 		Name: "post_user_requests",
 		Help: "Post user info processed requests.",
 	})
+
+	userAuthenticationRequestsFailed = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "user_authentication_requests_failed",
+		Help: "Failed user authentication processed requests.",
+	})
+
+	getUserRequestsFailed = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "get_user_requests_failed",
+		Help: "Failed get user info processed requests.",
+	})
+
+	postUserRequestsFailed = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "post_user_requests_failed",
+		Help: "Failed post user info processed requests.",
+	})
 )
 
 func Authentication(w http.ResponseWriter, r *http.Request) {
@@ -64,6 +79,7 @@ func Authentication(w http.ResponseWriter, r *http.Request) {
 	err := json.NewDecoder(r.Body).Decode(&info)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		userAuthenticationRequestsFailed.Inc()
 		log.Error(err)
 		return
 	}
@@ -72,6 +88,7 @@ func Authentication(w http.ResponseWriter, r *http.Request) {
 	results, err := database.Query(query, info.Email, info.Password)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		userAuthenticationRequestsFailed.Inc()
 		log.Error(err)
 		return
 	}
@@ -81,6 +98,7 @@ func Authentication(w http.ResponseWriter, r *http.Request) {
 		err = results.Scan(&user.ID)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
+			userAuthenticationRequestsFailed.Inc()
 			log.Error(err)
 			return
 		}
@@ -88,6 +106,7 @@ func Authentication(w http.ResponseWriter, r *http.Request) {
 		err := json.NewEncoder(w).Encode(user)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
+			userAuthenticationRequestsFailed.Inc()
 			log.Error(err)
 			return
 		}
@@ -95,6 +114,7 @@ func Authentication(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	} else {
 		w.WriteHeader(http.StatusUnauthorized)
+		userAuthenticationRequestsFailed.Inc()
 	}
 }
 
@@ -109,6 +129,7 @@ func getUserInfo(w http.ResponseWriter, r *http.Request) {
 	results, err := database.Query(query, id)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		getUserRequestsFailed.Inc()
 		log.Error(err)
 		return
 	}
@@ -119,6 +140,7 @@ func getUserInfo(w http.ResponseWriter, r *http.Request) {
 		err = results.Scan(&user.ID, &user.Email, &user.Password, &user.Name, &user.Surname, &user.Birthdate, &user.Car, &user.Image, &user.Mobilephone, &user.Preferences)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
+			getUserRequestsFailed.Inc()
 			log.Error(err)
 			return
 		}
@@ -127,6 +149,7 @@ func getUserInfo(w http.ResponseWriter, r *http.Request) {
 		err := json.NewEncoder(w).Encode(user)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
+			getUserRequestsFailed.Inc()
 			log.Error(err)
 			return
 		}
@@ -136,6 +159,7 @@ func getUserInfo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNotFound)
+	getUserRequestsFailed.Inc()
 }
 
 // Future work: Sign up
@@ -149,6 +173,7 @@ func postUserInfo(w http.ResponseWriter, r *http.Request) {
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		postUserRequestsFailed.Inc()
 		log.Error(err)
 		return
 	}
@@ -185,6 +210,7 @@ func postUserInfo(w http.ResponseWriter, r *http.Request) {
 		user.Preferences)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		postUserRequestsFailed.Inc()
 		log.Error(err)
 		return
 	}
